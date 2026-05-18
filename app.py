@@ -8,12 +8,27 @@ warnings.filterwarnings('ignore')
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title='Tx Weekly Report', page_icon='📡', layout='wide')
+
+# ── PASSWORD PROTECTION ───────────────────────────────────────────────────────
+password = st.sidebar.text_input('🔑 Enter Password', type='password')
+if password != 'YOUR_PASSWORD_HERE':   # ← replace with your own password
+    st.sidebar.warning('Enter password to access the dashboard.')
+    st.markdown("""
+        <div style='text-align:center; padding-top:150px'>
+            <h1>📡 Tx Weekly Report</h1>
+            <h3 style='color:#173563'>🔒 Please enter the password in the sidebar to access the dashboard.</h3>
+        </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+# ─────────────────────────────────────────────────────────────────────────────
+
 st.markdown("<h1 style='color:#173563;text-align:center'>📡 Tx Weekly Report</h1>", unsafe_allow_html=True)
 
-# ── FILE PATHS (auto-load from same folder as app.py) ────────────────────────
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-MAIN_FILE  = os.path.join(BASE_DIR, 'final_data.csv')
-REV_FILE   = os.path.join(BASE_DIR, 'Revenue.csv')
+# ── FILE PATHS ────────────────────────────────────────────────────────────────
+# Auto-load if running locally, fallback to upload if on cloud
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+MAIN_FILE = os.path.join(BASE_DIR, 'final_data.csv')
+REV_FILE  = os.path.join(BASE_DIR, 'Revenue.csv')
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -24,9 +39,21 @@ with st.sidebar:
     SITE_TYPES = ['BB', 'AGG', 'ACC']
     st.divider()
     st.subheader('📂 Data Files')
-    st.caption('Auto-loaded from project folder')
-    st.success('✅ final_data.csv' if os.path.exists(MAIN_FILE) else '❌ final_data.csv not found')
-    st.success('✅ Revenue.csv'    if os.path.exists(REV_FILE)  else '⚠️ Revenue.csv not found')
+
+    # Smart load: auto if local, upload if cloud
+    if os.path.exists(MAIN_FILE):
+        st.success('✅ final_data.csv — auto loaded')
+        main_source = MAIN_FILE
+    else:
+        st.info('Upload final_data.csv')
+        main_source = st.file_uploader('final_data.csv', type='csv', key='main')
+
+    if os.path.exists(REV_FILE):
+        st.success('✅ Revenue.csv — auto loaded')
+        rev_source = REV_FILE
+    else:
+        st.info('Upload Revenue.csv (optional)')
+        rev_source = st.file_uploader('Revenue.csv', type='csv', key='rev')
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def pl_colors(values):
@@ -64,13 +91,13 @@ def hbar_fig(labels, values, title, xlabel, vlines=True, figsize=(10, 5)):
     return fig
 
 # ── LOAD MAIN DATA ────────────────────────────────────────────────────────────
-if not os.path.exists(MAIN_FILE):
-    st.error(f'❌ **final_data.csv** not found in `{BASE_DIR}`\n\nPlease place the file in the same folder as app.py and restart.')
+if main_source is None:
+    st.info('👈 Upload **final_data.csv** in the sidebar to get started.')
     st.stop()
 
 @st.cache_data
-def load_main(path):
-    df = pd.read_csv(path)
+def load_main(source):
+    df = pd.read_csv(source)
     df['collecttime'] = pd.to_datetime(df['collecttime'], errors='coerce')
     df['packet_loss'] = pd.to_numeric(
         df['packet_loss'].astype(str).str.replace('%', '', regex=False), errors='coerce'
@@ -82,7 +109,7 @@ def load_main(path):
     df.dropna(subset=['collecttime'], inplace=True)
     return df
 
-df_raw = load_main(MAIN_FILE)
+df_raw = load_main(main_source)
 
 # ── DATA QUALITY ──────────────────────────────────────────────────────────────
 with st.expander('🔍 Data Quality Report', expanded=False):
@@ -401,20 +428,20 @@ with tab4:
 with tab5:
     st.markdown("<h2 style='color:#2a693d'>5. Revenue Impact</h2>", unsafe_allow_html=True)
 
-    if not os.path.exists(REV_FILE):
-        st.warning(f'⚠️ **Revenue.csv** not found in `{BASE_DIR}`\n\nPlace the file in the same folder as app.py and restart.')
+    if rev_source is None:
+        st.info('👈 Upload **Revenue.csv** in the sidebar to see this section.')
         st.stop()
 
     @st.cache_data
-    def load_revenue(path):
-        r = pd.read_csv(path)
+    def load_revenue(source):
+        r = pd.read_csv(source)
         r.columns = r.columns.str.strip()
         site_col  = r.columns[0]
         r[site_col] = norm_ssc(r[site_col])
         month_cols  = [c for c in r.columns if c != site_col and r[c].notna().any()]
         return r, site_col, month_cols
 
-    rev_df, site_code_col, month_cols = load_revenue(REV_FILE)
+    rev_df, site_code_col, month_cols = load_revenue(rev_source)
     selected_month = st.selectbox('Select revenue month', month_cols, index=len(month_cols)-1)
 
     rev_lookup = (
