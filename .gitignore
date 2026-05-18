@@ -1,0 +1,6 @@
+final_data.csv
+Revenue.csv
+__pycache__/
+*.pyc
+*.ipynb
+venv/
