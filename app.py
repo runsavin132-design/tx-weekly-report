@@ -11,7 +11,7 @@ st.set_page_config(page_title='Tx Weekly Report', page_icon='📡', layout='wide
 
 # ── PASSWORD PROTECTION ───────────────────────────────────────────────────────
 password = st.sidebar.text_input('🔑 Enter Password', type='password')
-if password != 'YOUR_PASSWORD_HERE':   # ← replace with your own password
+if password != 'tx@qos!26':   # ← replace with your own password
     st.sidebar.warning('Enter password to access the dashboard.')
     st.markdown("""
         <div style='text-align:center; padding-top:150px'>
