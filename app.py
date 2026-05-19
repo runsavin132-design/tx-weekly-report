@@ -4,7 +4,25 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import warnings
 import os
+import requests
+from io import StringIO
 warnings.filterwarnings('ignore')
+
+# ── GOOGLE DRIVE FILE IDs ─────────────────────────────────────────────────────
+# To update data: replace the CSV in Google Drive (keep same sharing link)
+MAIN_DRIVE_ID = '1-QThpX3NurD4Xuge6lnUR28nNRjJrbb9'
+REV_DRIVE_ID  = '1LEpjSbUySwwSoJGsjRgKz3yu2G2JGTRF'
+
+def gdrive_url(file_id):
+    return f'https://drive.google.com/uc?export=download&id={file_id}'
+
+@st.cache_data(ttl=3600)   # cache for 1 hour
+def load_from_drive(file_id):
+    url = gdrive_url(file_id)
+    response = requests.get(url)
+    response.raise_for_status()
+    return StringIO(response.text)
+# ─────────────────────────────────────────────────────────────────────────────
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title='Tx Weekly Report', page_icon='📡', layout='wide')
@@ -24,12 +42,6 @@ if password != 'tx@qos!2026':   # ← replace with your own password
 
 st.markdown("<h1 style='color:#173563;text-align:center'>📡 Tx Weekly Report</h1>", unsafe_allow_html=True)
 
-# ── FILE PATHS ────────────────────────────────────────────────────────────────
-# Auto-load if running locally, fallback to upload if on cloud
-BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
-MAIN_FILE = os.path.join(BASE_DIR, 'final_data.csv')
-REV_FILE  = os.path.join(BASE_DIR, 'Revenue.csv')
-
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header('⚙️ Configuration')
@@ -39,21 +51,9 @@ with st.sidebar:
     SITE_TYPES = ['BB', 'AGG', 'ACC']
     st.divider()
     st.subheader('📂 Data Files')
-
-    # Smart load: auto if local, upload if cloud
-    if os.path.exists(MAIN_FILE):
-        st.success('✅ final_data.csv — auto loaded')
-        main_source = MAIN_FILE
-    else:
-        st.info('Upload final_data.csv')
-        main_source = st.file_uploader('final_data.csv', type='csv', key='main')
-
-    if os.path.exists(REV_FILE):
-        st.success('✅ Revenue.csv — auto loaded')
-        rev_source = REV_FILE
-    else:
-        st.info('Upload Revenue.csv (optional)')
-        rev_source = st.file_uploader('Revenue.csv', type='csv', key='rev')
+    st.caption('Auto-loaded from Google Drive')
+    st.success('✅ final_data.csv')
+    st.success('✅ Revenue.csv')
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def pl_colors(values):
@@ -90,14 +90,15 @@ def hbar_fig(labels, values, title, xlabel, vlines=True, figsize=(10, 5)):
     plt.tight_layout()
     return fig
 
-# ── LOAD MAIN DATA ────────────────────────────────────────────────────────────
-if main_source is None:
-    st.info('👈 Upload **final_data.csv** in the sidebar to get started.')
-    st.stop()
-
-@st.cache_data
-def load_main(source):
-    df = pd.read_csv(source)
+# ── LOAD MAIN DATA FROM GOOGLE DRIVE ─────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def load_main():
+    try:
+        csv_data = load_from_drive(MAIN_DRIVE_ID)
+        df = pd.read_csv(csv_data)
+    except Exception as e:
+        st.error(f'❌ Failed to load final_data.csv from Google Drive: {e}')
+        st.stop()
     df['collecttime'] = pd.to_datetime(df['collecttime'], errors='coerce')
     df['packet_loss'] = pd.to_numeric(
         df['packet_loss'].astype(str).str.replace('%', '', regex=False), errors='coerce'
@@ -109,7 +110,8 @@ def load_main(source):
     df.dropna(subset=['collecttime'], inplace=True)
     return df
 
-df_raw = load_main(main_source)
+with st.spinner('Loading data from Google Drive...'):
+    df_raw = load_main()
 
 # ── DATA QUALITY ──────────────────────────────────────────────────────────────
 with st.expander('🔍 Data Quality Report', expanded=False):
@@ -428,20 +430,23 @@ with tab4:
 with tab5:
     st.markdown("<h2 style='color:#2a693d'>5. Revenue Impact</h2>", unsafe_allow_html=True)
 
-    if rev_source is None:
-        st.info('👈 Upload **Revenue.csv** in the sidebar to see this section.')
-        st.stop()
-
-    @st.cache_data
-    def load_revenue(source):
-        r = pd.read_csv(source)
+    # ── LOAD REVENUE FROM GOOGLE DRIVE ───────────────────────────────────────
+    @st.cache_data(ttl=3600)
+    def load_revenue():
+        try:
+            csv_data = load_from_drive(REV_DRIVE_ID)
+            r = pd.read_csv(csv_data)
+        except Exception as e:
+            st.error(f'❌ Failed to load Revenue.csv from Google Drive: {e}')
+            st.stop()
         r.columns = r.columns.str.strip()
         site_col  = r.columns[0]
         r[site_col] = norm_ssc(r[site_col])
         month_cols  = [c for c in r.columns if c != site_col and r[c].notna().any()]
         return r, site_col, month_cols
 
-    rev_df, site_code_col, month_cols = load_revenue(rev_source)
+    with st.spinner('Loading revenue data...'):
+        rev_df, site_code_col, month_cols = load_revenue()
     selected_month = st.selectbox('Select revenue month', month_cols, index=len(month_cols)-1)
 
     rev_lookup = (
