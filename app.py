@@ -10,7 +10,7 @@ warnings.filterwarnings('ignore')
 
 # ── GOOGLE DRIVE FILE IDs ─────────────────────────────────────────────────────
 # To update data: replace the CSV in Google Drive (keep same sharing link)
-MAIN_DRIVE_ID = '1-QThpX3NurD4Xuge6lnUR28nNRjJrbb9'
+MAIN_DRIVE_ID = 'https://drive.google.com/file/d/1ZUKTl_2zLRHpBGQ_NBXyk7UeUO6evNRZ/view?usp=sharing'
 REV_DRIVE_ID  = '1LEpjSbUySwwSoJGsjRgKz3yu2G2JGTRF'
 
 def gdrive_url(file_id):
