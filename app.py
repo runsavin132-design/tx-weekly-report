@@ -10,8 +10,8 @@ warnings.filterwarnings('ignore')
 
 # ── GOOGLE DRIVE FILE IDs ─────────────────────────────────────────────────────
 # To update data: replace the CSV in Google Drive (keep same sharing link)
-MAIN_DRIVE_ID = 'https://drive.google.com/file/d/1ZUKTl_2zLRHpBGQ_NBXyk7UeUO6evNRZ/view?usp=sharing'
-REV_DRIVE_ID  = '1LEpjSbUySwwSoJGsjRgKz3yu2G2JGTRF'
+MAIN_DRIVE_ID = '13B0J-TYJ_9W0AQteVHODCn4ZG3V-AgoM'
+REV_DRIVE_ID  = '1zkyi18HukgNZeWuk8ZMbWQhj9XthuKZ5'
 
 def gdrive_url(file_id):
     return f'https://drive.google.com/uc?export=download&id={file_id}'
@@ -408,7 +408,13 @@ with tab4:
         )
         fig, ax = plt.subplots(figsize=(16, 6))
         if top10_names:
-            trend = type_df[type_df['OFFICIAL SITE NAME'].isin(top10_names)].sort_values('collecttime')
+            # Deduplicate: 1 row per site per timestamp (max PL across IP paths)
+            trend = (
+                type_df[type_df['OFFICIAL SITE NAME'].isin(top10_names)]
+                .groupby(['OFFICIAL SITE NAME', 'collecttime'], as_index=False)['packet_loss']
+                .max()
+                .sort_values('collecttime')
+            )
             for name in top10_names:
                 d = trend[trend['OFFICIAL SITE NAME'] == name]
                 ax.plot(d['collecttime'], d['packet_loss'], label=make_label(name),
